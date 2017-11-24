@@ -1,7 +1,17 @@
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 
-public class State {
-	
+
+/**
+ * A State to store the current state of the game
+ * @author COMP 3211 Group6
+ * @since 2017-11-23
+ */
+public class State implements Comparable<State> {
+
+
+
 	//	# (hash) Wall
 	//	  (space) open floor
 	//	. (period) Empty goal
@@ -9,17 +19,50 @@ public class State {
 	//	+ (plus) Player on goal 
 	//	$ (dollar) Box on floor
 	//	* (asterisk) Box on goal
-	
-	// 1 up
-	// 2 down
-	// 3 left
-	// 4 right
-	
-	private char[][] level;
-	private int x; // x coordinate of the player
-	private int y; // y coordinate of the player
-	
+
+	/**
+	 * A String to store the whole layout
+	 */
+	private String statestring;
+
+	/**
+	 * A 2D array to store the layout
+	 */
+	public char[][] level;
+
+	/**
+	 * the initial x-coordinate of player
+	 */
+	private int x;
+
+	/**
+	 * the inital y-coordinate of player
+	 */
+	private int y;
+
+	/**
+	 * the cost of the player from begining
+	 */
+	private int cost;
+
+	/**
+	 * The String to store the path up to now
+	 */
+	private String path;
+
+	/**
+	 * the previous State of this State
+	 */
+	private State parent;
+
+	/**
+	 * Constructor of State
+	 * @param level the layout
+	 * @param x the x-coordinate of player
+	 * @param y the y-coordinate of player
+	 */
 	public State (char[][] level, int x, int y) {
+		parent = null;
 
 		//2D deep copy
 		this.level = new char[level.length][];
@@ -31,23 +74,256 @@ public class State {
 
 		this.x = x;
 		this.y = y;
+		cost = 0;
+		path = "";
+
+		//recompute the satestring
+		statestring = "";
+		for(char[] row : level)
+			for(char c : row)
+				statestring += c;
 	}
-	
-	public State (State state) {
+
+	/**
+	 * The constructor of State
+	 * @param par The parent state
+	 * @param dir The direction of what the parent will go
+	 */
+	public State (State par, char dir) {
+
+		parent = par;
+		this.cost = par.getCost() + 1;
+		path = par.getPath() + dir;
+
+		//make the move
+		char[][] tmplevel = computeState(par, dir);
 
 		//2D deep copy
-		this.level = new char[state.level.length][];
-		for(int i = 0; i < state.level[i].length; i++){
-			this.level[i] = new char[state.level[i].length];
-			for(int j = 0; j < level[i].length; j++)
-				this.level[i][j]=state.level[i][j];
+		level = new char[tmplevel.length][];
+		for(int i = 0; i < tmplevel.length; i++){
+			level[i] = new char[tmplevel[i].length];
+			for(int j = 0; j < tmplevel[i].length; j++)
+				level[i][j]=tmplevel[i][j];
 		}
 
-		this.x = state.x;
-		this.y = state.y;
+		//get new x and y
+		switch (dir) {
+		case 'u': 
+			x = par.getX() - 1;
+			y = par.getY();
+			break;
+		case 'd': 
+			x = par.getX() + 1;
+			y = par.getY();
+			break;
+		case 'l': 
+			x = par.getX();
+			y = par.getY() - 1;
+			break;
+		case 'r': 
+			x = par.getX();
+			y = par.getY() + 1;
+			break;	
+		}
+
+		//recompute the satestring
+		statestring = "";
+		for(char[] row : level)
+			for(char c : row)
+				statestring += c;
 	}
-	
-	private boolean isUpValid() {
+
+	/**
+	 * get the cost
+	 * @return cost Return the cost
+	 */
+	public int getCost() {
+		return cost;
+	}
+
+	//sum of shortest paths from boxes to goals
+
+	/**
+	 * calculate the manhattan distance between boxes and goals
+	 * @return sum The sum of distance between boxes and goals
+	 */
+	public int manhDist() {
+		ArrayList<int[]> goals = new ArrayList<int[]>();
+		ArrayList<int[]> boxes = new ArrayList<int[]>();
+		int sum = 0;
+
+		for(int i = 0; i < level.length; i++) {
+			for(int j = 0; j < level[i].length; j++) {
+				if(level[i][j] == '.' || level[i][j] == '*')
+					goals.add(new int[] {i, j});
+				if(level[i][j] == '$')
+					boxes.add(new int[] {i, j});			
+			}
+		}
+		
+		for(int[] b : boxes){
+			int min = 1000;
+			for(int[] g : goals){
+				int md = Math.abs(b[0] - g[0]) + Math.abs(b[1] - g[1]);
+				if(md < min)
+					min = md;
+			}
+			sum += min;
+		}
+		return sum;
+	}
+
+	//number of empty goals
+	/**
+	 * calculate the number of open goals
+	 * @return opengoals Return the sum of open goals
+	 */
+	public int openGoals() {
+		int opengoals = 0;
+		for(char[] row : level)
+			for(char c : row)
+				if(c == '.')
+					opengoals++;
+		return opengoals;
+	}
+
+	/**
+	 * get the map of the state
+	 * @return level return the state map
+	 */
+	public char[][] getState() {
+		return level;
+	}
+
+	/**
+	 * return the x-coordinate of player
+	 * @return x the x-coordinate of player
+	 */
+	public int getX() {
+		return x;
+	}
+
+	/**
+	 * return the y-coordinate of player
+	 * @return y the y-coordinate of player
+	 */
+	public int getY() {
+		return y;
+	}
+
+	/**
+	 * check the current state
+	 */
+	public void logState() {
+		try {
+			FileWriter fw = new FileWriter("log.txt", true);
+
+
+			for(char[] row : level){
+				for(char c : row){
+					fw.write(c);
+				}
+				fw.write('\n');
+			}
+			fw.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * print the current state
+	 */
+	public void printState() {
+		for(char[] row : level){
+			for(char c : row){
+				System.out.print(c);
+			}
+			System.out.println();
+		}
+		System.out.println();
+
+	}
+
+	/**
+	 * write result in txt file
+	 * @param line a String
+	 */
+	public void log(String line) {
+		try {
+			FileWriter fw = new FileWriter("log.txt", true);
+			fw.write(line);
+			fw.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * get the stateString
+	 * @return stateString return the StateString
+	 */
+	public String getStateString() {
+		return statestring;
+	}
+
+	/**
+	 * get the parent state of the current state
+	 * @return parent the parent of the current state
+	 */
+	public State getParent() {
+		return parent;
+	}
+
+	/**
+	 * get the path of current
+	 * @return path the path from start to current
+	 */
+	public String getPath() {
+		return path;
+	}
+
+	/**
+	 * return the hashcode of the statestring
+	 * @return statestring.hashCode() the hash code of the statestring
+	 */
+	public int hashCode() {
+		return statestring.hashCode();
+	}
+
+	/**
+	 * check whether the two states is equal
+	 * @param obj The input object to compared with the current state
+	 * @return boolean if equal return true, else return false
+	 */
+	public boolean equals(Object obj) {
+		if (obj == null)
+			return false;
+		if (!(obj instanceof State))
+			return false;
+		return ( ((State) obj).getStateString().equals(this.getStateString()) ) ? true : false;
+	}
+
+	/**
+	 * check whether the state is the goal
+	 * @return if is goal, return true, else return false
+	 */
+	public boolean isGoal() {
+		for(int i = 0; i < statestring.length(); i++) { 
+			char c = statestring.charAt(i); 
+			if(c == '.' || c == '+')
+				return false;
+		}
+		return true;
+	}
+
+	/**
+	 * check whether the up action is available
+	 * @return boolean if available return true, else return false
+	 */
+	public boolean isUpValid() {
 		//there's always an up, because I'll check later 
 		//to make sure you dont move into a wall
 		char up = level[x - 1][y];;
@@ -55,7 +331,7 @@ public class State {
 		if(up == '#') 
 			//you cant move up
 			return false;
-		//if you can move up, set the up variable and check open space
+		//if you cna move up, set the up variable and check open space
 		if(up == ' ' || up == '.') 
 			return true;
 		//lets check if upup exists: if the row 2 above is
@@ -74,7 +350,11 @@ public class State {
 		return false;
 	}
 
-	private boolean isDownValid() {
+	/**
+	 * check whether the down action is available
+	 * @return boolean if available return true, else return false
+	 */
+	public boolean isDownValid() {
 		//there's always a down, because I'll check later 
 		//to make sure you dont move into a wall					
 		char down = level[x + 1][y];;
@@ -101,7 +381,11 @@ public class State {
 		return false;
 	}
 
-	private boolean isLeftValid() {
+	/**
+	 * check whether the left action is available
+	 * @return boolean if available return true, else return false
+	 */
+	public boolean isLeftValid() {
 		//there's always a left, because I'll check later 
 		//to make sure you dont move into a wall					
 		char left = level[x][y - 1];;
@@ -127,7 +411,11 @@ public class State {
 		return false;
 	}
 
-	private boolean isRightValid() {
+	/**
+	 * check whether the right action is available
+	 * @return boolean if available return true, else return false
+	 */
+	public boolean isRightValid() {
 		//there's always a right, because I'll check later 
 		//to make sure you dont move into a wall					
 		char right = level[x][y + 1];;
@@ -152,8 +440,37 @@ public class State {
 		// might as well default to false
 		return false;
 	}
-	
-	public State computeState(State par, int dir) {
+
+	/**
+	 * get the available moves at current state
+	 * @return moves a arraylist to store all the available moves
+	 */
+	public ArrayList<Character> getValidMoves() {
+
+		ArrayList<Character> moves = new ArrayList<Character>();
+
+		if(isUpValid()) 
+			moves.add('u');
+
+		if(isDownValid()) 
+			moves.add('d');
+
+		if(isLeftValid()) 
+			moves.add('l');
+
+		if(isRightValid()) 
+			moves.add('r');
+
+		return moves;
+	}
+
+	/**
+	 * compute the next state depend on the input state and the action
+	 * @param par The State now
+	 * @param dir The action will take
+	 * @return newlevel A 2D array to store the next level map
+	 */
+	private char[][] computeState(State par, char dir) {
 		char[][] oldlevel = par.getState();
 		int x = par.getX();
 		int y = par.getY();
@@ -168,7 +485,7 @@ public class State {
 
 		switch (dir) {
 		//if move is up
-		case 1: 
+		case 'u': 
 			//the spot youre moving to is open floorspace
 			if(newlevel[x - 1][y] == ' ')
 				//move the player into the space
@@ -179,7 +496,7 @@ public class State {
 				newlevel[x - 1][y] = '+';
 			//the spot youre moving to is a box-on-floor
 			if(newlevel[x - 1][y] == '$') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x - 2][y] == ' '){
 					//make that space a box on floor
@@ -197,7 +514,7 @@ public class State {
 			}
 			//the spot youre moving to is a box-on-goal
 			if(newlevel[x - 1][y] == '*') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x - 2][y] == ' '){
 					//make that space a box on floor
@@ -224,7 +541,7 @@ public class State {
 				//keep the goal
 				newlevel[x][y] = '.';
 			break;	
-		case 2: 
+		case 'd': 
 			//and the spot youre moving to is open floorspace
 			if(newlevel[x + 1][y] == ' ')
 				//move the player into the space
@@ -235,7 +552,7 @@ public class State {
 				newlevel[x + 1][y] = '+';
 			//and the spot youre moving to is a box-on-floor
 			if(newlevel[x + 1][y] == '$') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x + 2][y] == ' '){
 					//make that space a box on floor
@@ -253,7 +570,7 @@ public class State {
 			}
 			//and the spot youre moving to is a box-on-goal
 			if(newlevel[x + 1][y] == '*') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x + 2][y] == ' '){
 					//make that space a box on floor
@@ -280,7 +597,7 @@ public class State {
 				//keep the goal
 				newlevel[x][y] = '.';
 			break;	
-		case 3: 
+		case 'l': 
 			//and the spot youre moving to is open floorspace
 			if(newlevel[x][y - 1] == ' ')
 				//move the player into the space
@@ -291,7 +608,7 @@ public class State {
 				newlevel[x][y - 1] = '+';
 			//and the spot youre moving to is a box-on-floor
 			if(newlevel[x][y - 1] == '$') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x][y - 2] == ' '){
 					//make that space a box on floor
@@ -309,7 +626,7 @@ public class State {
 			}
 			//and the spot youre moving to is a box-on-goal
 			if(newlevel[x][y - 1] == '*') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x][y - 2] == ' '){
 					//make that space a box on floor
@@ -336,7 +653,7 @@ public class State {
 				//keep the goal
 				newlevel[x][y] = '.';
 			break;	
-		case 4: 
+		case 'r': 
 			//and the spot youre moving to is open floorspace
 			if(newlevel[x][y + 1] == ' ')
 				//move the player into the space
@@ -347,7 +664,7 @@ public class State {
 				newlevel[x][y + 1] = '+';
 			//and the spot youre moving to is a box-on-floor
 			if(newlevel[x][y + 1] == '$') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x][y + 2] == ' '){
 					//make that space a box on floor
@@ -365,7 +682,7 @@ public class State {
 			}
 			//and the spot youre moving to is a box-on-goal
 			if(newlevel[x][y + 1] == '*') {
-				// cost++;
+				cost++;
 				//and there's a space in front of it,
 				if(newlevel[x][y + 2] == ' '){
 					//make that space a box on floor
@@ -394,111 +711,27 @@ public class State {
 				newlevel[x][y] = '.';
 			break;
 		}
-		int x_new = -1;
-		int y_new = -1;
-		for(int i = 0; i < newlevel.length; i++) {
-			for(int j = 0; j < newlevel[i].length; j++) {
-				if(newlevel[i][j] == '@' || newlevel[i][j] == '+')
-				{
-					x_new = i;
-					y_new = j;
-				}
-			}
-		}
-		return new State(newlevel,x_new,y_new);
-		
-		
-	}
-	
-    public int[] possibleActionsFromState() {
-        ArrayList<Integer> result = new ArrayList<>();
-        if(isUpValid()){
-        	result.add(1);
-        }
-        if(isDownValid()){
-        	result.add(2);
-        }
-        if(isLeftValid()){
-        	result.add(3);
-        }
-        if(isRightValid()){
-        	result.add(4);
-        }
-
-        return result.stream().mapToInt(i -> i).toArray();
-    }
-    
-    public boolean checkDeadlock(){
-    	boolean deadlock = false;
-    	return deadlock;
-    }
-    
-	public boolean isGoal() {
-		for(int i = 0; i < level.length; i++){
-			for(int j = 0; j < level[i].length; j++){
-				if(level[i][j]=='.' || level[i][j]=='+'){
-					return false;
-				}
-			}	
-		}
-		return true;
-	}
-	
-	public int numOfGoals(){
-		int num = 0;
-		for(int i = 0; i < level.length; i++){
-			for(int j = 0; j < level[i].length; j++){
-				if(level[i][j]=='*'){
-					num++;
-				}
-			}	
-		}
-		return num;
-	}
-	
-    
-	public char[][] getState() {
-		return level;
+		return newlevel;
 	}
 
-	public int getX() {
-		return x;
+	/**
+	 * compare two states' cost
+	 * @param o The input State
+	 * @return result if equal, return 0, if current state's cost less than the input state, return -1, else return 1
+	 */
+	@Override
+	public int compareTo(State o) {
+		if(this.getCost() == o.getCost())
+			return 0;
+		return (getCost() < o.getCost() ? -1 : 1);
 	}
 
-	public int getY() {
-		return y;
+	/**
+	 * convert the input String with x and y coordinate
+	 * @return result A String with x y coordinate
+	 */
+	public String toString() {	
+		return this.statestring+" [x]: "+x+" [y]:"+y;
 	}
-	
-    @Override
-    public boolean equals(Object o)
-    {
-        if(this == o)
-        {
-            return true;
-        }
-        if(!(o instanceof State))
-        {
-            return false;
-        }
-        State state = (State)o;
-        if(x!=state.x || y!=state.y){
-        	return false;
-        }
-        if(level.length!=state.level.length){
-        	return false;
-        }
 
-		for(int i = 0; i < level.length; i++){
-			if (level[i].length!=state.level[i].length){
-				return false;
-			}
-			for(int j = 0; j < level[i].length; j++)
-				if(level[i][j]!=state.level[i][j]){
-					return false;
-				}
-		}
-		return true;
-    }
-	
-	
 }
