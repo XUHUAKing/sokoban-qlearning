@@ -14,7 +14,7 @@
 ### 1) clone this project
 
 ```bash
-$ git clone https://github.com/zzhongab/AI_Sokoban.git
+$ git clone https://github.com/XUHUAKing/sokoban-qlearning.git
 ```
 ### 2) launch the GUI
 
